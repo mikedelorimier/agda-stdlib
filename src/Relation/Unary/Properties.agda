@@ -335,3 +335,21 @@ U-irrelevant a b = refl
 
 ∁-irrelevant : (P : Pred A ℓ) → Irrelevant (∁ P)
 ∁-irrelevant P a b = refl
+
+-- TODO: review and order the following copies:
+import Data.Product as ×
+
+private
+  variable
+    p q ℓ₄ : Level
+
+ℓ-∩-cong : {P1 : Pred A ℓ₁} {P2 : Pred A ℓ₂} {Q1 : Pred A ℓ₃} {Q2 : Pred A ℓ₄} →
+           P1 ≐ P2 → Q1 ≐ Q2 → (P1 ∩ Q1) ≐ (P2 ∩ Q2)
+ℓ-∩-cong (P⊆Q , Q⊆P) (R⊆S , S⊆R) = ×.map P⊆Q R⊆S , ×.map Q⊆P S⊆R
+
+ℓ-∩-congˡ : {P1 : Pred A ℓ₁} {P2 : Pred A ℓ₂} {Q : Pred A ℓ₃} →
+            P1 ≐ P2 → (P1 ∩ Q) ≐ (P2 ∩ Q)
+ℓ-∩-congˡ eq = ℓ-∩-cong eq ≐-refl
+
+Universal→≐ : {P : Pred A p} {Q : Pred A q} → Universal P → Universal Q → P ≐ Q
+Universal→≐ p q = (λ {x} _ → q x) , (λ {x} _ → p x)

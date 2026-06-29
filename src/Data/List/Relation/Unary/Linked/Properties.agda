@@ -149,3 +149,19 @@ module _ {P : Pred A p} (P? : Decidable P)
   filter⁺ {xs = x ∷ _} (r ∷ rs) with does (P? x)
   ... | false = filter⁺ rs
   ... | true  = ∷-filter⁺ (r ∷ rs)
+
+-- TODO: review and order the following
+import Data.List as List
+open import Data.Maybe using (just)
+module _ {ℓ : Level} {R : Rel A ℓ} where
+  All→Connected-last : (x : A) → {xs : List A} → All (flip R x) xs →
+                       Connected R (List.last xs) (just x)
+  All→Connected-last x [] = Connected.nothing-just
+  All→Connected-last x (px ∷ []) = Connected.just px
+  All→Connected-last x (_ ∷ pxs@(_ ∷ _)) = All→Connected-last x pxs
+
+  All→Linked : (x : A) → {xs : List A} → All (R x) xs →
+               Linked R xs → Linked R (x ∷ xs)
+  All→Linked x {[]} xRxs pxs = Linked.[-]
+  All→Linked x {y ∷ xs} (px ∷ xRxs) pxs = px ∷ pxs
+
