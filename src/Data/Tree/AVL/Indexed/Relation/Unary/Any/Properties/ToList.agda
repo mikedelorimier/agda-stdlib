@@ -26,7 +26,7 @@ open import Function using (_on_)
 open import Level using (Level; _⊔_)
 open import Relation.Binary using (Rel)
 import Relation.Binary.Construct.On as On
-open import Relation.Binary.PropositionalEquality using (_≡_)
+open import Relation.Binary.PropositionalEquality using (_≡_; sym)
 open import Relation.Binary.Structures using (IsStrictTotalOrder)
 open import Relation.Unary using (Pred)
 import Data.DifferenceList.Properties as DiffList
@@ -54,14 +54,14 @@ module _ {v : Level} {V : Value v} where
   open import Data.List.Relation.Unary.StrictSorted strictTotalOrderK& using () renaming (StrictSorted to StrictSortedK&) public
 
 module _ {v : Level} {V : Value v} where
-  toDiffList~ : ∀ {l u h} → (t : Tree V l u h) → toDiffList t DiffList.~ toList t
-  toDiffList~ (leaf l<u) = DiffList.~[]
-  toDiffList~ (node kv l r bal) rewrite toDiffList~ l (kv ∷ toDiffList r [])
-    = DiffList.~++-∷ kv (toDiffList~ l) (toDiffList~ r)
+  toDiffList≈ : ∀ {l u h} → (t : Tree V l u h) → toList t DiffList.≈ toDiffList t
+  toDiffList≈ (leaf l<u) = DiffList.[]⁺
+  toDiffList≈ (node kv l r bal) rewrite sym (toDiffList≈ l (kv ∷ toDiffList r [])) -- TODO: remove rewrite
+    = DiffList.++-∷⁺ kv (toDiffList≈ l) (toDiffList≈ r)
   toList-node : ∀ {l u hˡ hʳ h} →
        (kv : K& V) → (lk : Tree V l [ key kv ] hˡ) → (ku : Tree V [ key kv ] u hʳ) → (bal : hˡ ∼ hʳ ⊔ h) →
-       toList (node kv lk ku bal) ≡ toList lk ++ kv ∷ toList ku
-  toList-node kv lk ku bal = toDiffList~ lk ((kv DiffList.∷ toDiffList ku) [])
+       toList (node kv lk ku bal) ≡ toList lk ++ kv ∷ toList ku -- TODO: swap sym equality?
+  toList-node kv lk ku bal = sym (toDiffList≈ lk ((kv DiffList.∷ toDiffList ku) []))
 
   toList⁺ : {p : Level} {P : Pred (K& V) p} →
             ∀ {l u h} → {t : Tree V l u h} → Any P t → List.Any P (toList t)

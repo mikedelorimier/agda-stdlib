@@ -8,104 +8,116 @@
 
 module Data.DifferenceList.Properties where
 
--- TODO: prune imports
-open import Data.DifferenceList.Base using (DiffList; lift; []; [_]; _∷_; _++_; _∷ʳ_; toList; fromList; map; take; drop)
+open import Data.DifferenceList.Base
 open import Data.List as List using (List)
 import Data.List.Properties as List
-open import Data.List.Relation.Binary.Pointwise using (Pointwise)
-open import Data.Nat using (ℕ)
-open import Level using (Level; _⊔_)
-open import Relation.Binary.Core using (REL)
-open import Relation.Binary.PropositionalEquality using (_≡_; refl)
-open import Relation.Nullary.Negation using (¬_)
+open import Data.Product using (Σ-syntax; _,_)
+open import Level using (Level)
+open import Relation.Binary.PropositionalEquality
+  using (_≡_; refl; cong; sym; module ≡-Reasoning)
 
--- TODO: check variable style: Same as Base?
+open ≡-Reasoning
+
 private
   variable
     a b : Level
     A : Set a
     B : Set b
+    xs xs₁ xs₂ : List A
+    ys ys₁ ys₂ : DiffList A
 
--- ~ relates a DiffList to the equivalent List.
-infix 1 _~_
-_~_ : {a : Level} {A : Set a} →
-      DiffList A → List A → Set a
-_~_ {A = A} xs ys = (k : List A) → xs k ≡ ys List.++ k
+-- ≈ is bisimulation between List and DiffList
+infix 1 _≈_
+_≈_ : {A : Set a} → List A → DiffList A → Set a
+_≈_ {A = A} xs ys = (k : List A) → xs List.++ k ≡ ys k
 
-~REL : {ℓ a b : Level} {A : Set a} {B : Set b} →
-       (R : REL A B ℓ) → DiffList A → List B → Set (a ⊔ b ⊔ ℓ)
-~REL {A = A} {B = B} R xs ys =
-  {xk : List A} {yk : List B} → Pointwise R xk ys →
-  Pointwise R (xs xk) (ys List.++ yk)
+IsAppend : {A : Set a} → DiffList A → Set a
+IsAppend {A = A} ys = Σ[ xs₁ ∈ List A ] (∀ xs₂ → ys xs₂ ≡ xs₁ List.++ xs₂)
 
+fromList∘toList : IsAppend ys → ∀ k → fromList (toList ys) k ≡ ys k
+fromList∘toList {ys = ys} (xs₁ , p) k = begin
+  fromList (toList ys) k          ≡⟨⟩
+  ys List.[] List.++ k            ≡⟨ cong (List._++ k) (p List.[]) ⟩
+  (xs₁ List.++ List.[]) List.++ k ≡⟨ cong (List._++ k) (List.++-identityʳ xs₁) ⟩
+  xs₁ List.++ k                   ≡⟨ sym (p k) ⟩
+  ys k                            ∎
 
--- TODO: The extra hypothesis isn't satisfied for ~take or ~drop. Is it useful?
-~lift : {xs : DiffList A} {ys : List A} (f : List A → List A) →
-        ((ys1 ys2 : List A) → f (ys1 List.++ ys2) ≡ f ys1 List.++ ys2) →
-        xs ~ ys → lift f xs ~ f ys
-~lift {ys = ys} f f-assoc is k rewrite is k = f-assoc ys k
+toList∘fromList : toList (fromList xs) ≡ xs
+toList∘fromList {xs = xs} = List.++-identityʳ xs
 
-~[] : ([] {A = A}) ~ List.[]
-~[] k = refl
+open import Data.Product using (Σ; proj₁)
+open import Function.Bundles
+open import Relation.Binary.Bundles
+open import Relation.Binary.PropositionalEquality using (_≗_)
+open import Function using (_on_)
+open import Relation.Binary.Construct.On
+open import Relation.Binary.PropositionalEquality.Properties renaming (setoid to ≡-setoid)
+-- open import Relation.Binary.PropositionalEquality.Properties renaming (setoid to ≡-setoid)
+-- open import Function.Indexed.Relation.Binary.Equality using (≡-setoid)
+DiffListSetoid : Set a → Setoid {!!} {!!}
+DiffListSetoid A = record { Carrier = Σ (DiffList A) IsAppend ; _≈_ = _≗_ on proj₁ ; isEquivalence = record { refl = λ {x} x₁ → refl ; sym = λ x x₁ → {!!} ; trans = {!!} } }
+a1 : {A : Set a} → Inverse (≡-setoid (List A)) {!!}
+a1 = {!!}
 
-~∷ : {xs : DiffList A} {ys : List A} (x : A) → xs ~ ys → (x ∷ xs) ~ (x List.∷ ys)
-~∷ {xs = xs} x is = ~lift {xs = xs} (x List.∷_) (λ _ _ → refl) is
+-- `lift` respects `≈` when `f` is a prepend
+lift⁺ : (f : List A → List A) →
+        (∀ xs′ → f xs′ ≡ f List.[] List.++ xs′) →
+        xs ≈ ys →
+        f xs ≈ lift f ys
+lift⁺ {xs = xs} {ys = ys} f f-is-prepend sim k = begin
+  f xs List.++ k                   ≡⟨ cong (List._++ k) (f-is-prepend xs) ⟩
+  (f List.[] List.++ xs) List.++ k ≡⟨ List.++-assoc (f List.[]) xs k ⟩
+  f List.[] List.++ (xs List.++ k) ≡⟨ sym (f-is-prepend (xs List.++ k)) ⟩
+  f (xs List.++ k)                 ≡⟨ cong f (sim k) ⟩
+  f (ys k)                         ≡⟨⟩
+  lift f ys k                      ∎
 
-~[_] : (x : A) → [ x ] ~ List.[ x ]
-~[_] x k = refl
+[]⁺ : List.[] {A = A} ≈ []
+[]⁺ k = refl
 
-~++ : {xs1 xs2 : DiffList A} {ys1 ys2 : List A} → xs1 ~ ys1 → xs2 ~ ys2 → xs1 ++ xs2 ~ ys1 List.++ ys2
-~++ {xs1 = xs1} {xs2} {ys1 = ys1} {ys2} ~1 ~2 k
-  rewrite ~2 k | ~1 (ys2 List.++ k) | List.++-assoc ys1 ys2 k
-  = refl
+∷⁺ : (x : A) → xs ≈ ys → x List.∷ xs ≈ x ∷ ys
+∷⁺ x sim = lift⁺ (x List.∷_) (λ _ → refl) sim
 
+[_]⁺ : (x : A) → List.[ x ] ≈ [ x ]
+[_]⁺ x k = refl
 
--- ++ with a single element in the middle:
-~++-∷ : {xs1 xs2 : DiffList A} {ys1 ys2 : List A} → (x : A) → xs1 ~ ys1 → xs2 ~ ys2 → xs1 ++ (x ∷ xs2) ~ ys1 List.++ (x List.∷ ys2)
-~++-∷ x ~1 ~2 = ~++ ~1 (~∷ x ~2)
+++⁺ : xs₁ ≈ ys₁ → xs₂ ≈ ys₂ → xs₁ List.++ xs₂ ≈ ys₁ ++ ys₂
+++⁺ {xs₁ = xs₁} {ys₁ = ys₁} {xs₂ = xs₂} {ys₂ = ys₂} sim₁ sim₂ k = begin
+  (xs₁ List.++ xs₂) List.++ k ≡⟨ List.++-assoc xs₁ xs₂ k ⟩
+  xs₁ List.++ (xs₂ List.++ k) ≡⟨ cong (xs₁ List.++_) (sim₂ k) ⟩
+  xs₁ List.++ ys₂ k           ≡⟨ sim₁ (ys₂ k) ⟩
+  ys₁ (ys₂ k)                 ≡⟨⟩
+  (ys₁ ++ ys₂) k              ∎
 
-~∷ʳ : {xs : DiffList A} {ys : List A} (x : A) → xs ~ ys → xs ∷ʳ x ~ ys List.∷ʳ x
-~∷ʳ {ys = ys} x is k
-  rewrite List.++-assoc ys (x List.∷ List.[]) k
-  = is (x List.∷ k)
+++-∷⁺ : (x : A) → xs₁ ≈ ys₁ → xs₂ ≈ ys₂ →
+        xs₁ List.++ x List.∷ xs₂ ≈ ys₁ ++ x ∷ ys₂
+++-∷⁺ x sim₁ sim₂ = ++⁺ sim₁ (∷⁺ x sim₂)
 
-~toList : {xs : DiffList A} {ys : List A} → xs ~ ys → toList xs ≡ ys
-~toList {ys = ys} is rewrite is List.[] = List.++-identityʳ ys
+∷ʳ⁺ : (x : A) → xs ≈ ys → xs List.∷ʳ x ≈ ys ∷ʳ x
+∷ʳ⁺ {xs = xs} {ys} x sim k = begin
+  xs List.∷ʳ x List.++ k            ≡⟨⟩
+  (xs List.++ List.[ x ]) List.++ k ≡⟨ List.++-assoc xs List.[ x ] k ⟩
+  xs List.++ (x List.∷ k)           ≡⟨ sim (x List.∷ k) ⟩
+  ys (x List.∷ k)                   ≡⟨⟩
+  (ys ∷ʳ x) k                       ∎
 
-~fromList : (ys : List A) → fromList ys ~ ys
-~fromList ys k = refl
+toList⁺ : xs ≈ ys → xs ≡ toList ys
+toList⁺ {xs = xs} {ys} sim = begin
+  xs                 ≡⟨ sym (List.++-identityʳ xs) ⟩
+  xs List.++ List.[] ≡⟨ sim List.[] ⟩
+  ys List.[]         ≡⟨⟩
+  toList ys          ∎
 
-~map : {xs : DiffList A} {ys : List A} (f : A → B) → xs ~ ys → map f xs ~ List.map f ys
-~map {ys = ys} f is k rewrite is List.[] | List.++-identityʳ ys = refl
+fromList⁺ : xs ≈ ys → ∀ k → fromList xs k ≡ ys k
+fromList⁺ sim k = sim k
 
--- TODO: In order for ~concat to be usable we need a way to create the ~REL,
---       so we need to give a connection between ~REL and ~.
---       Something like: (~REL _≡_) ≡ _~_
-{-
-~concat : {xss : DiffList (DiffList A)} → {yss : List (List A)} →
-          ~REL _~_ xss yss → concat xss ~ List.concat yss
-~concat is k = {!!}
--}
-
-
-module CounterintuitiveExamples where
-  -- The following behavior of `take` is counterintuitive.
-  -- The expected property does not hold: xs ~ ys → take n xs ~ List.take n ys
-  _ : (take 0 (10 ∷ [])) (11 List.∷ List.[]) ≡ List.[]
-  _ = refl
-  _ : List.take 0 (10 List.∷ List.[]) List.++ 11 List.∷ List.[] ≡ 11 List.∷ List.[]
-  _ = refl
-  ¬~take : ¬ ({A : Set} → {xs : DiffList A} → {ys : List A} → (n : ℕ) → xs ~ ys → take n xs ~ List.take n ys)
-  ¬~take ~take with ~take 0 (~fromList (10 List.∷ List.[])) (11 List.∷ List.[])
-  ... | ()
-  -- Instead we can use take as the last DiffList operation:
-  []take : {xs : DiffList A} {ys : List A} (n : ℕ) → xs ~ ys → take n xs List.[] ≡ List.take n ys
-  []take {ys = ys} n is rewrite is List.[] | List.++-identityʳ ys = refl
-
-  -- `drop` has similar counterintuitive behaviour as `take`:
-  ¬~drop : ¬ ({A : Set} → {xs : DiffList A} → {ys : List A} → (n : ℕ) → xs ~ ys → drop n xs ~ List.drop n ys)
-  ¬~drop ~drop with ~drop 1 (~fromList List.[]) (11 List.∷ List.[])
-  ... | ()
-  -- Instead we can use drop as the last DiffList operation:
-  []drop : {xs : DiffList A} {ys : List A} (n : ℕ) → xs ~ ys → drop n xs List.[] ≡ List.drop n ys
-  []drop {ys = ys} n is rewrite is List.[] | List.++-identityʳ ys = refl
+map⁺ : (f : A → B) → xs ≈ ys →
+       List.map f xs ≈ map f ys
+map⁺ {xs = xs} {ys} f sim k = begin
+  List.map f xs List.++ k
+    ≡⟨ cong (λ xs → List.map f xs List.++ k) (sym (List.++-identityʳ xs)) ⟩
+  List.map f (xs List.++ List.[]) List.++ k
+    ≡⟨ cong (λ xs → List.map f xs List.++ k) (sim List.[]) ⟩
+  List.map f (ys List.[]) List.++ k
+    ≡⟨⟩
+  map f ys k ∎
