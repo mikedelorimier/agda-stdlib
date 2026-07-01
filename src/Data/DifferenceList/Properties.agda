@@ -102,4 +102,3 @@ lift⁺ {xs = xs} {ys = ys} f prepend xs∼ys k = begin
 map⁺ : (f : A → B) → xs ∼ ys → List.map f xs ∼ map f ys
 map⁺ f xs∼ys k =
   cong (λ xs → fromList (List.map f xs) k) (toList⁺ xs∼ys)
-

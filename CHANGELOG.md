@@ -155,6 +155,11 @@ New modules
 * `Data.Bool.ListAction.Properties` for properties of conjunction and
   disjunction of lists.
 
+* `Data.DifferenceList.Properties` for properties of `DiffList` operations.
+  Most of these are preservation properties between an operation on `List` and
+  the corresponding operation on the corresponding `DiffList`.
+  The contents of `Data.DifferenceList` was moved to `Data.DifferenceList.Base`.
+
 * A new type of lists that grow on the right.
   This is typically useful to model contexts of typing rules
   or type accumulators that need to be reversed in the base case.
