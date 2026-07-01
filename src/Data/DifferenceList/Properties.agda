@@ -9,9 +9,10 @@
 module Data.DifferenceList.Properties where
 
 open import Data.DifferenceList.Base
+  using (DiffList; fromList; toList; lift; []; _∷_; [_]; _++_; _∷ʳ_; map)
 open import Data.List as List using (List)
-import Data.List.Properties as List
-open import Data.Product using (Σ-syntax; _,_)
+open import Data.List.Properties using (++-assoc; ++-identityʳ)
+open import Function using (id)
 open import Level using (Level)
 open import Relation.Binary.PropositionalEquality
   using (_≡_; refl; cong; sym; module ≡-Reasoning)
@@ -26,98 +27,79 @@ private
     xs xs₁ xs₂ : List A
     ys ys₁ ys₂ : DiffList A
 
--- ≈ is bisimulation between List and DiffList
-infix 1 _≈_
-_≈_ : {A : Set a} → List A → DiffList A → Set a
-_≈_ {A = A} xs ys = (k : List A) → xs List.++ k ≡ ys k
 
-IsAppend : {A : Set a} → DiffList A → Set a
-IsAppend {A = A} ys = Σ[ xs₁ ∈ List A ] (∀ xs₂ → ys xs₂ ≡ xs₁ List.++ xs₂)
+------------------------------------------------------------------------
+-- Relation between Lists and equivalent DiffLists
 
-fromList∘toList : IsAppend ys → ∀ k → fromList (toList ys) k ≡ ys k
-fromList∘toList {ys = ys} (xs₁ , p) k = begin
-  fromList (toList ys) k          ≡⟨⟩
-  ys List.[] List.++ k            ≡⟨ cong (List._++ k) (p List.[]) ⟩
-  (xs₁ List.++ List.[]) List.++ k ≡⟨ cong (List._++ k) (List.++-identityʳ xs₁) ⟩
-  xs₁ List.++ k                   ≡⟨ sym (p k) ⟩
-  ys k                            ∎
+infix 4 _∼_
+_∼_ : {A : Set a} → List A → DiffList A → Set a
+_∼_ {A = A} xs ys = (k : List A) → fromList xs k ≡ ys k
 
-toList∘fromList : toList (fromList xs) ≡ xs
-toList∘fromList {xs = xs} = List.++-identityʳ xs
+------------------------------------------------------------------------
+-- Properties of fromList and toList
 
-open import Data.Product using (Σ; proj₁)
-open import Function.Bundles
-open import Relation.Binary.Bundles
-open import Relation.Binary.PropositionalEquality using (_≗_)
-open import Function using (_on_)
-open import Relation.Binary.Construct.On
-open import Relation.Binary.PropositionalEquality.Properties renaming (setoid to ≡-setoid)
--- open import Relation.Binary.PropositionalEquality.Properties renaming (setoid to ≡-setoid)
--- open import Function.Indexed.Relation.Binary.Equality using (≡-setoid)
-DiffListSetoid : Set a → Setoid {!!} {!!}
-DiffListSetoid A = record { Carrier = Σ (DiffList A) IsAppend ; _≈_ = _≗_ on proj₁ ; isEquivalence = record { refl = λ {x} x₁ → refl ; sym = λ x x₁ → {!!} ; trans = {!!} } }
-a1 : {A : Set a} → Inverse (≡-setoid (List A)) {!!}
-a1 = {!!}
+∼-fromList : xs ∼ fromList xs
+∼-fromList _ = refl
 
--- `lift` respects `≈` when `f` is a prepend
+toList∘fromList : (xs : List A) → toList (fromList xs) ≡ xs
+toList∘fromList = ++-identityʳ
+
+toList⁺ : xs ∼ ys → xs ≡ toList ys
+toList⁺ {xs = xs} {ys} xs∼ys = begin
+  xs                  ≡⟨ sym (++-identityʳ xs) ⟩
+  xs List.++ List.[]  ≡⟨ xs∼ys List.[] ⟩
+  ys List.[]          ≡⟨⟩
+  toList ys           ∎
+
+fromList⁺ : xs ∼ ys → (k : List A) → fromList xs k ≡ ys k
+fromList⁺ = id
+
+------------------------------------------------------------------------
+-- Properties of operations that preserve _∼_
+
+-- `lift` preserves `∼` when `f` is a prepend
 lift⁺ : (f : List A → List A) →
         (∀ xs′ → f xs′ ≡ f List.[] List.++ xs′) →
-        xs ≈ ys →
-        f xs ≈ lift f ys
-lift⁺ {xs = xs} {ys = ys} f f-is-prepend sim k = begin
-  f xs List.++ k                   ≡⟨ cong (List._++ k) (f-is-prepend xs) ⟩
-  (f List.[] List.++ xs) List.++ k ≡⟨ List.++-assoc (f List.[]) xs k ⟩
-  f List.[] List.++ (xs List.++ k) ≡⟨ sym (f-is-prepend (xs List.++ k)) ⟩
-  f (xs List.++ k)                 ≡⟨ cong f (sim k) ⟩
-  f (ys k)                         ≡⟨⟩
-  lift f ys k                      ∎
+        xs ∼ ys → f xs ∼ lift f ys
+lift⁺ {xs = xs} {ys = ys} f prepend xs∼ys k = begin
+  f xs List.++ k                    ≡⟨ cong (List._++ k) (prepend xs) ⟩
+  (f List.[] List.++ xs) List.++ k  ≡⟨ ++-assoc (f List.[]) xs k ⟩
+  f List.[] List.++ (xs List.++ k)  ≡⟨ sym (prepend (xs List.++ k)) ⟩
+  f (xs List.++ k)                  ≡⟨ cong f (xs∼ys k) ⟩
+  f (ys k)                          ≡⟨⟩
+  lift f ys k                       ∎
 
-[]⁺ : List.[] {A = A} ≈ []
-[]⁺ k = refl
+[]⁺ : List.[] {A = A} ∼ []
+[]⁺ _ = refl
 
-∷⁺ : (x : A) → xs ≈ ys → x List.∷ xs ≈ x ∷ ys
-∷⁺ x sim = lift⁺ (x List.∷_) (λ _ → refl) sim
+∷⁺ : (x : A) → xs ∼ ys → x List.∷ xs ∼ x ∷ ys
+∷⁺ x = lift⁺ (x List.∷_) (λ _ → refl)
 
-[_]⁺ : (x : A) → List.[ x ] ≈ [ x ]
-[_]⁺ x k = refl
+[_]⁺ : (x : A) → List.[ x ] ∼ [ x ]
+[_]⁺ _ _ = refl
 
-++⁺ : xs₁ ≈ ys₁ → xs₂ ≈ ys₂ → xs₁ List.++ xs₂ ≈ ys₁ ++ ys₂
-++⁺ {xs₁ = xs₁} {ys₁ = ys₁} {xs₂ = xs₂} {ys₂ = ys₂} sim₁ sim₂ k = begin
-  (xs₁ List.++ xs₂) List.++ k ≡⟨ List.++-assoc xs₁ xs₂ k ⟩
-  xs₁ List.++ (xs₂ List.++ k) ≡⟨ cong (xs₁ List.++_) (sim₂ k) ⟩
-  xs₁ List.++ ys₂ k           ≡⟨ sim₁ (ys₂ k) ⟩
-  ys₁ (ys₂ k)                 ≡⟨⟩
-  (ys₁ ++ ys₂) k              ∎
+++⁺ : xs₁ ∼ ys₁ → xs₂ ∼ ys₂ → xs₁ List.++ xs₂ ∼ ys₁ ++ ys₂
+++⁺ {xs₁ = xs₁} {ys₁ = ys₁} {xs₂ = xs₂} {ys₂ = ys₂}
+    xs₁∼ys₁ xs₂∼ys₂ k = begin
+  (xs₁ List.++ xs₂) List.++ k  ≡⟨ ++-assoc xs₁ xs₂ k ⟩
+  xs₁ List.++ (xs₂ List.++ k)  ≡⟨ cong (xs₁ List.++_) (xs₂∼ys₂ k) ⟩
+  xs₁ List.++ ys₂ k            ≡⟨ xs₁∼ys₁ (ys₂ k) ⟩
+  ys₁ (ys₂ k)                  ≡⟨⟩
+  (ys₁ ++ ys₂) k               ∎
 
-++-∷⁺ : (x : A) → xs₁ ≈ ys₁ → xs₂ ≈ ys₂ →
-        xs₁ List.++ x List.∷ xs₂ ≈ ys₁ ++ x ∷ ys₂
-++-∷⁺ x sim₁ sim₂ = ++⁺ sim₁ (∷⁺ x sim₂)
+++-∷⁺ : (x : A) → xs₁ ∼ ys₁ → xs₂ ∼ ys₂ →
+        xs₁ List.++ x List.∷ xs₂ ∼ ys₁ ++ x ∷ ys₂
+++-∷⁺ x xs₁∼ys₁ xs₂∼ys₂ = ++⁺ xs₁∼ys₁ (∷⁺ x xs₂∼ys₂)
 
-∷ʳ⁺ : (x : A) → xs ≈ ys → xs List.∷ʳ x ≈ ys ∷ʳ x
-∷ʳ⁺ {xs = xs} {ys} x sim k = begin
-  xs List.∷ʳ x List.++ k            ≡⟨⟩
-  (xs List.++ List.[ x ]) List.++ k ≡⟨ List.++-assoc xs List.[ x ] k ⟩
-  xs List.++ (x List.∷ k)           ≡⟨ sim (x List.∷ k) ⟩
-  ys (x List.∷ k)                   ≡⟨⟩
-  (ys ∷ʳ x) k                       ∎
+∷ʳ⁺ : (x : A) → xs ∼ ys → xs List.∷ʳ x ∼ ys ∷ʳ x
+∷ʳ⁺ {xs = xs} {ys} x xs∼ys k = begin
+  xs List.∷ʳ x List.++ k             ≡⟨⟩
+  (xs List.++ List.[ x ]) List.++ k  ≡⟨ ++-assoc xs List.[ x ] k ⟩
+  xs List.++ (x List.∷ k)            ≡⟨ xs∼ys (x List.∷ k) ⟩
+  ys (x List.∷ k)                    ≡⟨⟩
+  (ys ∷ʳ x) k                        ∎
 
-toList⁺ : xs ≈ ys → xs ≡ toList ys
-toList⁺ {xs = xs} {ys} sim = begin
-  xs                 ≡⟨ sym (List.++-identityʳ xs) ⟩
-  xs List.++ List.[] ≡⟨ sim List.[] ⟩
-  ys List.[]         ≡⟨⟩
-  toList ys          ∎
+map⁺ : (f : A → B) → xs ∼ ys → List.map f xs ∼ map f ys
+map⁺ f xs∼ys k =
+  cong (λ xs → fromList (List.map f xs) k) (toList⁺ xs∼ys)
 
-fromList⁺ : xs ≈ ys → ∀ k → fromList xs k ≡ ys k
-fromList⁺ sim k = sim k
-
-map⁺ : (f : A → B) → xs ≈ ys →
-       List.map f xs ≈ map f ys
-map⁺ {xs = xs} {ys} f sim k = begin
-  List.map f xs List.++ k
-    ≡⟨ cong (λ xs → List.map f xs List.++ k) (sym (List.++-identityʳ xs)) ⟩
-  List.map f (xs List.++ List.[]) List.++ k
-    ≡⟨ cong (λ xs → List.map f xs List.++ k) (sim List.[]) ⟩
-  List.map f (ys List.[]) List.++ k
-    ≡⟨⟩
-  map f ys k ∎
